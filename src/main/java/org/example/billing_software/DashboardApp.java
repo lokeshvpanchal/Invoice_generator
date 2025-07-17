@@ -28,7 +28,6 @@ public class DashboardApp extends Application {
         // Initialize SQLite connection and tables
         try {
             conn = DriverManager.getConnection("jdbc:sqlite:invoices.db");
-            createTables();
         } catch (SQLException e) {
             e.printStackTrace();
             return;
@@ -84,16 +83,6 @@ public class DashboardApp extends Application {
 
     private void showInventoryView() {
         workspace.getChildren().setAll(new Button("[Inventory view placeholder]"));
-    }
-
-    private void createTables() throws SQLException {
-        try (Statement st = conn.createStatement()) {
-            st.execute("CREATE TABLE IF NOT EXISTS sales(invoice_number TEXT PRIMARY KEY, client_name TEXT, gst_no TEXT, date TEXT)");
-            st.execute("CREATE TABLE IF NOT EXISTS items(item_id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT UNIQUE, rate REAL)");
-            st.execute("CREATE TABLE IF NOT EXISTS invoice_items(invoice_number TEXT, item_id INTEGER, quantity INTEGER, rate REAL, " +
-                    "FOREIGN KEY(invoice_number) REFERENCES sales(invoice_number), " +
-                    "FOREIGN KEY(item_id) REFERENCES items(item_id))");
-        }
     }
 
     public static void main(String[] args) {

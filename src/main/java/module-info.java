@@ -9,6 +9,8 @@ module org.example.billing_software {
     requires org.kordamp.bootstrapfx.core;
     requires eu.hansolo.tilesfx;
     requires java.sql;
+    requires java.mail;
+    requires activation;
 
     opens org.example.billing_software to javafx.fxml;
     exports org.example.billing_software;
