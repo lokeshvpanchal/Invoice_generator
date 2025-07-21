@@ -1,10 +1,10 @@
 package org.example.billing_software;
+import org.example.billing_software.utils.InvoicePdfUtil;
 
 import javafx.beans.property.*;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
-import javafx.print.PrinterJob;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.TextFormatter.Change;
@@ -12,6 +12,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import org.example.billing_software.utils.InvoicePrinter;
 
 import javax.mail.*;
 import javax.mail.internet.*;
@@ -21,6 +22,7 @@ import java.io.File;
 import java.sql.*;
 import java.time.LocalDate;
 
+import java.util.ArrayList;
 import java.util.Properties;
 import java.util.function.UnaryOperator;
 
@@ -124,11 +126,46 @@ public class CreateInvoiceForm {
             billField.setText(String.valueOf(fetchNextBill(conn)));
         });
         printBtn.setOnAction(e -> {
-            PrinterJob job = PrinterJob.createPrinterJob();
-            if (job != null && job.showPrintDialog(root.getScene().getWindow())) {
-                if (job.printPage(root)) job.endJob();
+            // first, recalc and populate the totals fields
+            updateTotals(items, taxCheck.isSelected(), subField, cgstField, sgstField, totField);
+
+            // pull all the values out of the form
+            String invNo      = billField.getText();
+            String clientName = nameField.getText();
+            String gstNo      = gstField.getText();
+            String date       = datePicker.getValue().toString();
+            boolean taxIncl   = taxCheck.isSelected();
+            String make       = carMakeField.getText();
+            String model      = carModelField.getText();
+
+            double subtotalVal = Double.parseDouble(subField.getText());
+            double cgstVal     = Double.parseDouble(cgstField.getText());
+            double sgstVal     = Double.parseDouble(sgstField.getText());
+            double totalVal    = Double.parseDouble(totField.getText());
+
+            try {
+                InvoicePrinter.printInvoice(
+                        invNo,
+                        clientName,
+                        gstNo,
+                        date,
+                        new ArrayList<>(items),
+                        taxIncl,
+                        make,
+                        model,
+                        subtotalVal,
+                        cgstVal,
+                        sgstVal,
+                        totalVal
+                );
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                new Alert(Alert.AlertType.ERROR, "Print failed: " + ex.getMessage())
+                        .showAndWait();
             }
         });
+
         emailBtn.setOnAction(e -> {
             String invNo = billField.getText();
             try {
@@ -358,8 +395,8 @@ public class CreateInvoiceForm {
     }
 
     public static class LineItem {
-        final StringProperty particulars = new SimpleStringProperty();
-        final IntegerProperty quantity    = new SimpleIntegerProperty(1);
-        final DoubleProperty  amount      = new SimpleDoubleProperty(0.0);
+        public final StringProperty particulars = new SimpleStringProperty();
+        public final IntegerProperty quantity    = new SimpleIntegerProperty(1);
+        public final DoubleProperty  amount      = new SimpleDoubleProperty(0.0);
     }
 }
