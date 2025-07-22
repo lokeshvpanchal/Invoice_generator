@@ -23,6 +23,7 @@ import java.sql.*;
 import java.time.LocalDate;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.function.UnaryOperator;
 
@@ -126,10 +127,10 @@ public class CreateInvoiceForm {
             billField.setText(String.valueOf(fetchNextBill(conn)));
         });
         printBtn.setOnAction(e -> {
-            // first, recalc and populate the totals fields
-            updateTotals(items, taxCheck.isSelected(), subField, cgstField, sgstField, totField);
+            // first, recalc totals fields
+            updateTotals(items, taxCheck.isSelected(),
+                    subField, cgstField, sgstField, totField);
 
-            // pull all the values out of the form
             String invNo      = billField.getText();
             String clientName = nameField.getText();
             String gstNo      = gstField.getText();
@@ -144,12 +145,27 @@ public class CreateInvoiceForm {
             double totalVal    = Double.parseDouble(totField.getText());
 
             try {
+                // 1) build a new list of LineItems with net amounts (if tax included)
+                List<LineItem> printItems = new ArrayList<>();
+                for (LineItem item : items) {
+                    LineItem pi = new LineItem();
+                    pi.particulars.set(item.particulars.get());
+                    pi.quantity   .set(item.quantity.get());
+                    double rawAmt = item.amount.get();
+                    double netAmt = taxIncl
+                            ? rawAmt / (1 + CGST_RATE + SGST_RATE)
+                            : rawAmt;
+                    pi.amount.set(netAmt);
+                    printItems.add(pi);
+                }
+
+                // 2) pass those net‐amount items into your printer
                 InvoicePrinter.printInvoice(
                         invNo,
                         clientName,
                         gstNo,
                         date,
-                        new ArrayList<>(items),
+                        printItems,
                         taxIncl,
                         make,
                         model,
@@ -158,13 +174,13 @@ public class CreateInvoiceForm {
                         sgstVal,
                         totalVal
                 );
-
             } catch (Exception ex) {
                 ex.printStackTrace();
                 new Alert(Alert.AlertType.ERROR, "Print failed: " + ex.getMessage())
                         .showAndWait();
             }
         });
+
 
         emailBtn.setOnAction(e -> {
             String invNo = billField.getText();

@@ -9,6 +9,8 @@ import java.awt.print.PageFormat;
 import java.awt.print.Printable;
 import static java.awt.print.Printable.NO_SUCH_PAGE;
 import static java.awt.print.Printable.PAGE_EXISTS;
+
+
 import java.awt.print.PrinterException;
 import java.awt.print.PrinterJob;
 import java.io.File;
@@ -27,7 +29,8 @@ public class InvoicePrinter {
     private static final String BANK_ACC = "50200045669341";
     private static final String BANK_BRANCH = "HDFC0003789";
     private static final String SIGNATURE_TEXT = "Authorized Signatory";
-
+    private static final double CGST_RATE = 0.09;
+    private static final double SGST_RATE = 0.09;
     /**
      * Prints a full-page invoice with logo, table, amounts, and footer details.
      */
@@ -133,20 +136,28 @@ public class InvoicePrinter {
 
                 // Table rows
 
+// Table rows
                 g.setFont(new Font("Arial", Font.PLAIN, 12));
                 y += 20;
                 int i = 1;
                 for (LineItem item : items) {
+                    double rawAmt = item.amount.get();
+
+                    // ← NEW: if tax was included, get the net amount (remove 18%)
+                    double displayAmt = taxIncluded
+                            ? rawAmt / (1 + CGST_RATE + SGST_RATE)
+                            : rawAmt;
+
+                    // compute unit rate on the net amount
                     double rate = item.quantity.get() != 0
-                            ? item.amount.get() / item.quantity.get()
+                            ? displayAmt / item.quantity.get()
                             : 0.0;
 
-                    g.drawString(String.format("%d",i), tableX, y);
-                    i+=1;
-                    g.drawString(item.particulars.get(), tableX +30, y);
+                    g.drawString(String.valueOf(i++),        tableX,      y);
+                    g.drawString(item.particulars.get(),     tableX + 30, y);
                     g.drawString(String.valueOf(item.quantity.get()), qtyX, y);
-                    g.drawString(String.format("%.2f", rate), rateX, y);
-                    g.drawString(String.format("%.2f", item.amount.get()), amtX, y);
+                    g.drawString(String.format("%.2f", rate),           rateX, y);
+                    g.drawString(String.format("%.2f", displayAmt),     amtX,  y);
                     y += 15;
                 }
 
