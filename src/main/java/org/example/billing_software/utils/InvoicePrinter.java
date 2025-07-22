@@ -13,6 +13,7 @@ import java.awt.print.PrinterException;
 import java.awt.print.PrinterJob;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 
 import org.example.billing_software.CreateInvoiceForm.LineItem;
@@ -20,9 +21,11 @@ import org.example.billing_software.CreateInvoiceForm.LineItem;
 public class InvoicePrinter {
 
     // Company-specific constants
-    private static final String LOGO_PATH = "/path/to/logo.png";
+    private static final String LOGO_PATH = "/img/logo.png";
     private static final String COMPANY_GST_NO = "29ABCDE1234F2Z5";
-    private static final String BANK_DETAILS = "Bank XYZ, A/C: 123456789";
+    private static final String BANK_NAME = "HDFC BANK";
+    private static final String BANK_ACC = "50200045669341";
+    private static final String BANK_BRANCH = "HDFC0003789";
     private static final String SIGNATURE_TEXT = "Authorized Signatory";
 
     /**
@@ -53,50 +56,94 @@ public class InvoicePrinter {
                 double width = pf.getImageableWidth();
                 double height = pf.getImageableHeight();
 
-                int y = 0;
+                int y = 20;
+                int x = 20;
                 // Draw logo
-                try {
-                    Image logo = ImageIO.read(new File(LOGO_PATH));
-                    int logoHeight = 50;
-                    g.drawImage(logo, 0, y, (int)(width/3), logoHeight, null);
+                try (InputStream is = InvoicePrinter.class.getResourceAsStream(LOGO_PATH)) {
+                    if (is == null) {
+                        System.out.println("logo resource not found on classpath: " + LOGO_PATH);
+                    } else {
+                        Image logo = ImageIO.read(is);
+                        int logoHeight = 50;
+                        g.drawImage(logo, x,  y, (int)(width/2.8), logoHeight, null);
+                    }
                 } catch (IOException e) {
-                    // ignore missing logo
+                    e.printStackTrace();
                 }
+                y += 70;
+                g.setFont(new Font("Arial", Font.PLAIN, 10));
+                g.drawString("GF-10/11, Kasper Square, Opp. Gangotri Exotica,", 20, y);
+                y += 13;
+                g.drawString("30 mtr Gotri-Laxmipura Road, Vadodara - 390021", 20, y);
+                y += 13;
+                g.drawString("M:+91 99789 15902   Email: autocraft.gj06@gmail.com", 20, y);
+
 
                 // Header: client and bill no
-                y += 100;
-                g.setFont(new Font("Serif", Font.BOLD, 12));
-                g.drawString("Client: " + client, 20, y);
-                String billLabel = "Bill No: " + invoiceNo;
-                g.drawString(billLabel, (int)width - 2* g.getFontMetrics().stringWidth(billLabel), y);
+                y = 86;
+                int pos = (int)width*6/8;
+                g.setFont(new Font("Arial", Font.PLAIN, 10));
+                y += 13;
+                g.drawString("Bill No:", (int) pos , y);
+                String billLabel =  invoiceNo;
+                g.drawString(billLabel, (int)width*7/8, y);
+                y += 13;
+                g.drawString("Date:", (int) pos , y);
+                String dateLabel = date;
+                g.drawString(dateLabel,  (int)width*7/8, y);
+                // client details
 
-                // GST and date
-                y += 15;
-                g.setFont(new Font("Serif", Font.PLAIN, 10));
-                g.drawString("GST No.: " + gst, 0, y);
-                String dateLabel = "Date: " + date;
-                g.drawString(dateLabel, (int)width - g.getFontMetrics().stringWidth(dateLabel), y);
+
+                y += 50;
+                pos = (int)width/6;
+                g.setFont(new Font("Arial", Font.PLAIN, 12));
+
+                g.drawString("Client:" , 20 , y);
+                String clientLabel =  client;
+                g.drawString(clientLabel, pos , y);
+
+                g.drawString("Car Make:" , (int)width*4/6 , y);
+                String makeLabel =  carMake;
+                g.drawString(makeLabel, (int)width*5/6 , y);
+
+                y += 13;
+                g.drawString( "GST No.:" , 20 , y);
+                String gstLabel = gst;
+                if (gst == ""){
+                    gstLabel = "Not Applicable";
+                }
+                g.drawString(gstLabel, pos, y);
+
+                g.drawString("Car Model:" , (int)width*4/6 , y);
+                String makeModel =  carModel;
+                g.drawString(makeModel, (int)width*5/6 , y);
 
                 // Table header (100% width)
                 y += 30;
-                int tableX = 0;
+                int tableX = 20;
                 int qtyX   = (int)(width * 0.5);
                 int rateX  = (int)(width * 0.7);
                 int amtX   = (int)(width * 0.85);
-                g.setFont(new Font("Serif", Font.BOLD, 10));
-                g.drawString("Particulars", tableX, y);
+                g.setFont(new Font("Arial", Font.BOLD, 13));
+                g.drawString("No.", tableX, y);
+                g.drawString("Particulars", tableX +30, y);
                 g.drawString("Qty", qtyX, y);
                 g.drawString("Rate", rateX, y);
                 g.drawString("Amount", amtX, y);
 
                 // Table rows
-                g.setFont(new Font("Serif", Font.PLAIN, 10));
-                y += 15;
+
+                g.setFont(new Font("Arial", Font.PLAIN, 12));
+                y += 20;
+                int i = 1;
                 for (LineItem item : items) {
                     double rate = item.quantity.get() != 0
                             ? item.amount.get() / item.quantity.get()
                             : 0.0;
-                    g.drawString(item.particulars.get(), tableX, y);
+
+                    g.drawString(String.format("%d",i), tableX, y);
+                    i+=1;
+                    g.drawString(item.particulars.get(), tableX +30, y);
                     g.drawString(String.valueOf(item.quantity.get()), qtyX, y);
                     g.drawString(String.format("%.2f", rate), rateX, y);
                     g.drawString(String.format("%.2f", item.amount.get()), amtX, y);
@@ -105,8 +152,7 @@ public class InvoicePrinter {
 
                 // Totals block under Amount column
                 y += 15;
-                g.setFont(new Font("Serif", Font.PLAIN, 10));
-                int labelX = (int)(width * 0.6);
+                int labelX = (int)(width * 0.7);
                 g.drawString("Subtotal:", labelX, y);
                 g.drawString(String.format("%.2f", subtotal), amtX, y);
                 y += 15;
@@ -115,26 +161,40 @@ public class InvoicePrinter {
                 y += 15;
                 g.drawString("SGST:", labelX, y);
                 g.drawString(String.format("%.2f", sgst), amtX, y);
+                g.setFont(new Font("Arial", Font.BOLD, 12));
+                g.drawString("Rupees in Words:", tableX, y);
                 y += 15;
-                g.setFont(new Font("Serif", Font.BOLD, 10));
                 g.drawString("Total:", labelX, y);
                 g.drawString(String.format("%.2f", total), amtX, y);
 
                 // Rupees in words (left side)
-                y += 30;
-                g.setFont(new Font("Serif", Font.PLAIN, 10));
-                String words = NumberToWordsConverter.convert((long) total) + " Rupees Only";
+                g.setFont(new Font("Arial", Font.PLAIN, 12));
+                String words = "   "+NumberToWordsConverter.convert((long) total) + " Rupees Only";
                 g.drawString(words, tableX, y);
 
                 // Footer: company GST, bank details
-                y += 30;
+                y = (int) height - 120;
+                g.setFont(new Font("Arial", Font.BOLD, 14));
                 g.drawString("Company GST No.: " + COMPANY_GST_NO, tableX, y);
+                g.setFont(new Font("Arial", Font.PLAIN, 12));
+
                 y += 15;
-                g.drawString("Bank Details: " + BANK_DETAILS, tableX, y);
+                g.drawString("Bank Name: " + BANK_NAME, tableX, y);
+
+                y += 15;
+                g.drawString("Bank Account Number: " + BANK_ACC, tableX, y);
+
+                y += 15;
+                g.drawString("Bank Branch IFSC: " + BANK_BRANCH, tableX, y);
+
+                y += 30;
+                g.drawString("E. & O.E. ", tableX, y);
+                y += 15;
+                g.drawString("Subject to Vadodara Jurisdication.", tableX, y);
 
                 // Signature at bottom-right
                 int sigY = (int)height - 30;
-                g.drawString(SIGNATURE_TEXT, (int)width - g.getFontMetrics().stringWidth(SIGNATURE_TEXT), sigY);
+                g.drawString(SIGNATURE_TEXT, (int)width - g.getFontMetrics().stringWidth(SIGNATURE_TEXT)-20, sigY);
 
                 return PAGE_EXISTS;
             }
