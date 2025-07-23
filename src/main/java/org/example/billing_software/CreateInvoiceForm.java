@@ -1,5 +1,5 @@
 package org.example.billing_software;
-import org.example.billing_software.utils.InvoicePdfUtil;
+import org.example.billing_software.utils.InvoiceData;
 
 import javafx.beans.property.*;
 import javafx.collections.FXCollections;
@@ -14,11 +14,16 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import org.example.billing_software.utils.InvoicePrinter;
 
+import javax.imageio.ImageIO;
 import javax.mail.*;
 import javax.mail.internet.*;
 import javax.activation.*;
 
+import java.awt.image.BufferedImage;
+import java.awt.print.PageFormat;
+import java.awt.print.PrinterException;
 import java.io.File;
+import java.io.IOException;
 import java.sql.*;
 import java.time.LocalDate;
 
@@ -126,10 +131,9 @@ public class CreateInvoiceForm {
             );
             billField.setText(String.valueOf(fetchNextBill(conn)));
         });
+
         printBtn.setOnAction(e -> {
-            // first, recalc totals fields
-            updateTotals(items, taxCheck.isSelected(),
-                    subField, cgstField, sgstField, totField);
+            updateTotals(items, taxCheck.isSelected(), subField, cgstField, sgstField, totField);
 
             String invNo      = billField.getText();
             String clientName = nameField.getText();
@@ -144,58 +148,90 @@ public class CreateInvoiceForm {
             double sgstVal     = Double.parseDouble(sgstField.getText());
             double totalVal    = Double.parseDouble(totField.getText());
 
-            try {
-                // 1) build a new list of LineItems with net amounts (if tax included)
-                List<LineItem> printItems = new ArrayList<>();
-                for (LineItem item : items) {
-                    LineItem pi = new LineItem();
-                    pi.particulars.set(item.particulars.get());
-                    pi.quantity   .set(item.quantity.get());
-                    double rawAmt = item.amount.get();
-                    double netAmt = taxIncl
-                            ? rawAmt / (1 + CGST_RATE + SGST_RATE)
-                            : rawAmt;
-                    pi.amount.set(netAmt);
-                    printItems.add(pi);
-                }
+            // build net-amount item list
+            List<LineItem> printItems = new ArrayList<>();
+            for (LineItem item : items) {
+                LineItem pi = new LineItem();
+                pi.particulars.set(item.particulars.get());
+                pi.quantity   .set(item.quantity.get());
+                double rawAmt = item.amount.get();
+                double netAmt = taxIncl
+                        ? rawAmt / (1 + CGST_RATE + SGST_RATE)
+                        : rawAmt;
+                pi.amount.set(netAmt);
+                printItems.add(pi);
+            }
 
-                // 2) pass those net‐amount items into your printer
-                InvoicePrinter.printInvoice(
-                        invNo,
-                        clientName,
-                        gstNo,
-                        date,
-                        printItems,
-                        taxIncl,
-                        make,
-                        model,
-                        subtotalVal,
-                        cgstVal,
-                        sgstVal,
-                        totalVal
-                );
-            } catch (Exception ex) {
+            // create InvoiceData and print
+            InvoiceData data = new InvoiceData(
+                    invNo, clientName, gstNo, date,
+                    printItems, taxIncl,
+                    make, model,
+                    subtotalVal, cgstVal, sgstVal, totalVal
+            );
+            try {
+                InvoicePrinter.printInvoice(data);
+            } catch (PrinterException ex) {
                 ex.printStackTrace();
-                new Alert(Alert.AlertType.ERROR, "Print failed: " + ex.getMessage())
-                        .showAndWait();
+                new Alert(Alert.AlertType.ERROR, "Print failed: " + ex.getMessage()).showAndWait();
             }
         });
 
-
         emailBtn.setOnAction(e -> {
-            String invNo = billField.getText();
+            updateTotals(items, taxCheck.isSelected(), subField, cgstField, sgstField, totField);
+
+            String invNo      = billField.getText();
+            String clientName = nameField.getText();
+            String gstNo      = gstField.getText();
+            String date       = datePicker.getValue().toString();
+            boolean taxIncl   = taxCheck.isSelected();
+            String make       = carMakeField.getText();
+            String model      = carModelField.getText();
+
+            double subtotalVal = Double.parseDouble(subField.getText());
+            double cgstVal     = Double.parseDouble(cgstField.getText());
+            double sgstVal     = Double.parseDouble(sgstField.getText());
+            double totalVal    = Double.parseDouble(totField.getText());
+
+            // build net-amount item list
+            List<LineItem> emailItems = new ArrayList<>();
+            for (LineItem item : items) {
+                LineItem ei = new LineItem();
+                ei.particulars.set(item.particulars.get());
+                ei.quantity   .set(item.quantity.get());
+                double rawAmt = item.amount.get();
+                double netAmt = taxIncl
+                        ? rawAmt / (1 + CGST_RATE + SGST_RATE)
+                        : rawAmt;
+                ei.amount.set(netAmt);
+                emailItems.add(ei);
+            }
+
+            InvoiceData data = new InvoiceData(
+                    invNo, clientName, gstNo, date,
+                    emailItems, taxIncl,
+                    make, model,
+                    subtotalVal, cgstVal, sgstVal, totalVal
+            );
+
             try {
-                String pdfPath = exportInvoiceToPdf(root, invNo);
+                PageFormat pf = new PageFormat();
+                BufferedImage img = InvoicePrinter.createInvoiceImage(data, pf);
+                File outFile = new File("invoice-" + invNo + ".png");
+                ImageIO.write(img, "png", outFile);
+
                 sendEmailWithAttachment(
                         "customer@example.com",
                         "Invoice #" + invNo,
                         "Please find attached your invoice.",
-                        pdfPath
+                        outFile.getAbsolutePath()
                 );
                 new Alert(Alert.AlertType.INFORMATION, "Invoice emailed!").showAndWait();
-            } catch (Exception ex) {
+            } catch (IOException | MessagingException ex) {
                 ex.printStackTrace();
                 new Alert(Alert.AlertType.ERROR, "Email failed: " + ex.getMessage()).showAndWait();
+            } catch (Exception ex) {
+                throw new RuntimeException(ex);
             }
         });
         HBox actions = new HBox(10, saveBtn, printBtn, emailBtn);
