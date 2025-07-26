@@ -1,38 +1,40 @@
-// InvoicePrinter.java
 package org.example.billing_software.utils;
 
-import java.awt.print.*;
-import java.awt.*;
-import java.awt.image.BufferedImage;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.printing.PDFPageable;
 
+import java.awt.print.PrinterException;
+import java.awt.print.PrinterJob;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+
+/**
+ * InvoicePrinter uses PdfGenerator to render the invoice into a PDF
+ * and then sends it to the printer as a vector PDF for high-quality output.
+ */
 public class InvoicePrinter {
 
-    /** print to a printer dialog **/
-    public static void printInvoice(InvoiceData data) throws PrinterException {
-        PrinterJob job = PrinterJob.getPrinterJob();
-        job.setPrintable((Graphics graphics, PageFormat pf, int pageIndex) -> {
-            if (pageIndex > 0) return Printable.NO_SUCH_PAGE;
-            Graphics2D g2 = (Graphics2D) graphics;
-            InvoiceRenderer.render(g2, pf, data);
-            return Printable.PAGE_EXISTS;
-        });
+    /**
+     * Print the invoice PDF to a physical printer via a print dialog.
+     * @param data the invoice data
+     * @throws PrinterException if the print job fails
+     * @throws IOException if PDF generation or loading fails
+     */
+    public static void printInvoice(InvoiceData data) throws PrinterException, IOException {
+        // Generate PDF bytes in memory
+        PdfGenerator generator = new PdfGenerator();
+        byte[] pdfBytes = generator.generatePdfDocument(data);
 
-        if (job.printDialog()) {
-            job.print();
+        // Load into PDFBox PDDocument
+        try (PDDocument document = PDDocument.load(new ByteArrayInputStream(pdfBytes))) {
+            // Hook up to Java PrinterJob using PDFPageable for vector output
+            PrinterJob job = PrinterJob.getPrinterJob();
+            job.setPageable(new PDFPageable(document));
+
+            // Show print dialog and print if confirmed
+            if (job.printDialog()) {
+                job.print();
+            }
         }
-    }
-
-    /** generate a BufferedImage you can e-mail or embed **/
-    public static BufferedImage createInvoiceImage(InvoiceData data, PageFormat pf) {
-        int w = (int)pf.getImageableWidth();
-        int h = (int)pf.getImageableHeight();
-        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g2 = img.createGraphics();
-        // white background
-        g2.setPaint(Color.white);
-        g2.fillRect(0,0,w,h);
-        InvoiceRenderer.render(g2, pf, data);
-        g2.dispose();
-        return img;
     }
 }

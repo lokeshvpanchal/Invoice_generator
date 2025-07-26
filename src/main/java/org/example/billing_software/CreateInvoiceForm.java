@@ -1,4 +1,6 @@
 package org.example.billing_software;
+import javafx.application.Platform;
+import org.example.billing_software.utils.EmailUtil;
 import org.example.billing_software.utils.InvoiceData;
 
 import javafx.beans.property.*;
@@ -13,14 +15,12 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import org.example.billing_software.utils.InvoicePrinter;
+import org.example.billing_software.utils.PdfGenerator;
 
-import javax.imageio.ImageIO;
 import javax.mail.*;
 import javax.mail.internet.*;
 import javax.activation.*;
 
-import java.awt.image.BufferedImage;
-import java.awt.print.PageFormat;
 import java.awt.print.PrinterException;
 import java.io.File;
 import java.io.IOException;
@@ -29,6 +29,7 @@ import java.time.LocalDate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.function.UnaryOperator;
 
@@ -64,12 +65,14 @@ public class CreateInvoiceForm {
         CheckBox taxCheck     = new CheckBox();
         TextField carMakeField  = new TextField();
         TextField carModelField = new TextField();
+        TextField carLicenseNo = new TextField();
         header.addRow(1, new Label("Client Name:"), nameField);
         header.addRow(2, new Label("GST No (opt):"), gstField);
         header.addRow(3, new Label("Date:"), datePicker);
-        header.addRow(4, new Label("Tax Included:"), taxCheck);
-        header.addRow(5, new Label("Car Make:"), carMakeField);
-        header.addRow(6, new Label("Car Model:"), carModelField);
+        header.addRow(4, new Label("Car Make:"), carMakeField);
+        header.addRow(5, new Label("Car Model:"), carModelField);
+        header.addRow(5, new Label("Car License No. :"), carLicenseNo);
+        header.addRow(6, new Label("Tax Included:"), taxCheck);
 
         // Items
         VBox itemsBox = new VBox(5);
@@ -118,6 +121,7 @@ public class CreateInvoiceForm {
         Button printBtn = new Button("Print Invoice");
         Button emailBtn = new Button("Email Invoice");
         saveBtn.setOnAction(e -> {
+
             updateTotals(items, taxCheck.isSelected(), subField, cgstField, sgstField, totField);
             saveInvoice(conn,
                     billField.getText(),
@@ -127,7 +131,8 @@ public class CreateInvoiceForm {
                     items,
                     taxCheck.isSelected(),
                     carMakeField.getText(),
-                    carModelField.getText()
+                    carModelField.getText(),
+                    carLicenseNo.getText()
             );
             billField.setText(String.valueOf(fetchNextBill(conn)));
         });
@@ -142,7 +147,8 @@ public class CreateInvoiceForm {
             boolean taxIncl   = taxCheck.isSelected();
             String make       = carMakeField.getText();
             String model      = carModelField.getText();
-
+            String license   =  carLicenseNo.getText();
+            //grand totals
             double subtotalVal = Double.parseDouble(subField.getText());
             double cgstVal     = Double.parseDouble(cgstField.getText());
             double sgstVal     = Double.parseDouble(sgstField.getText());
@@ -153,12 +159,21 @@ public class CreateInvoiceForm {
             for (LineItem item : items) {
                 LineItem pi = new LineItem();
                 pi.particulars.set(item.particulars.get());
-                pi.quantity   .set(item.quantity.get());
-                double rawAmt = item.amount.get();
-                double netAmt = taxIncl
-                        ? rawAmt / (1 + CGST_RATE + SGST_RATE)
-                        : rawAmt;
+
+                int qty = item.quantity.get();
+                pi.quantity.set(qty);
+
+                double inputRate = item.rate.get();
+                // net rate = strip tax if original was tax‑inclusive
+                double netRate = taxIncl
+                        ? inputRate / (1 + CGST_RATE + SGST_RATE)
+                        : inputRate;
+                pi.rate.set(netRate);
+
+                // amount = rate × quantity
+                double netAmt = netRate * qty;
                 pi.amount.set(netAmt);
+
                 printItems.add(pi);
             }
 
@@ -166,7 +181,7 @@ public class CreateInvoiceForm {
             InvoiceData data = new InvoiceData(
                     invNo, clientName, gstNo, date,
                     printItems, taxIncl,
-                    make, model,
+                    make, model, license,
                     subtotalVal, cgstVal, sgstVal, totalVal
             );
             try {
@@ -174,12 +189,30 @@ public class CreateInvoiceForm {
             } catch (PrinterException ex) {
                 ex.printStackTrace();
                 new Alert(Alert.AlertType.ERROR, "Print failed: " + ex.getMessage()).showAndWait();
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
             }
         });
 
         emailBtn.setOnAction(e -> {
+            // 1) recalc totals
             updateTotals(items, taxCheck.isSelected(), subField, cgstField, sgstField, totField);
 
+            // 2) prompt for recipient email
+            TextInputDialog dialog = new TextInputDialog();
+            dialog.setTitle("Send Invoice");
+            dialog.setHeaderText("Email Invoice PDF");
+            dialog.setContentText("Enter recipient email:");
+            Optional<String> emailResult = dialog.showAndWait();
+            if (emailResult.isEmpty()) return; // cancelled
+
+            String recipientEmail = emailResult.get().trim();
+            if (recipientEmail.isEmpty()) {
+                new Alert(Alert.AlertType.WARNING, "No email entered.").showAndWait();
+                return;
+            }
+
+            // 3) gather invoice & customer info
             String invNo      = billField.getText();
             String clientName = nameField.getText();
             String gstNo      = gstField.getText();
@@ -187,53 +220,65 @@ public class CreateInvoiceForm {
             boolean taxIncl   = taxCheck.isSelected();
             String make       = carMakeField.getText();
             String model      = carModelField.getText();
+            String licenseNo = carLicenseNo.getText();
 
-            double subtotalVal = Double.parseDouble(subField.getText());
-            double cgstVal     = Double.parseDouble(cgstField.getText());
-            double sgstVal     = Double.parseDouble(sgstField.getText());
-            double totalVal    = Double.parseDouble(totField.getText());
-
-            // build net-amount item list
+            // 4) build net-amount line items
+            // 4) build net-amount line items with rate preserved
             List<LineItem> emailItems = new ArrayList<>();
             for (LineItem item : items) {
                 LineItem ei = new LineItem();
                 ei.particulars.set(item.particulars.get());
-                ei.quantity   .set(item.quantity.get());
+                ei.quantity  .set(item.quantity.get());
+
+                double inputRate = item.rate.get();
+                double netRate   = taxIncl
+                        ? inputRate  / (1 + CGST_RATE + SGST_RATE)
+                        : inputRate;
+                ei.rate.set(netRate);
+
                 double rawAmt = item.amount.get();
                 double netAmt = taxIncl
-                        ? rawAmt / (1 + CGST_RATE + SGST_RATE)
+                        ? rawAmt      / (1 + CGST_RATE + SGST_RATE)
                         : rawAmt;
                 ei.amount.set(netAmt);
+
                 emailItems.add(ei);
             }
+
 
             InvoiceData data = new InvoiceData(
                     invNo, clientName, gstNo, date,
                     emailItems, taxIncl,
-                    make, model,
-                    subtotalVal, cgstVal, sgstVal, totalVal
+                    make, model, licenseNo,
+                    Double.parseDouble(subField.getText()),
+                    Double.parseDouble(cgstField.getText()),
+                    Double.parseDouble(sgstField.getText()),
+                    Double.parseDouble(totField.getText())
             );
 
             try {
-                PageFormat pf = new PageFormat();
-                BufferedImage img = InvoicePrinter.createInvoiceImage(data, pf);
-                File outFile = new File("invoice-" + invNo + ".png");
-                ImageIO.write(img, "png", outFile);
+                PdfGenerator gen = new PdfGenerator();
+                byte[] pdfBytes = gen.generatePdfDocument(data);
 
-                sendEmailWithAttachment(
-                        "customer@example.com",
-                        "Invoice #" + invNo,
-                        "Please find attached your invoice.",
-                        outFile.getAbsolutePath()
+                EmailUtil.sendEmailWithAttachmentBytes(
+                        recipientEmail,
+                        "Invoice #" + invNo + " PDF",
+                        "Hello " + clientName + ",\n\nPlease find attached your invoice PDF.",
+                        pdfBytes,
+                        "invoice-" + invNo + ".pdf"
                 );
-                new Alert(Alert.AlertType.INFORMATION, "Invoice emailed!").showAndWait();
-            } catch (IOException | MessagingException ex) {
-                ex.printStackTrace();
-                new Alert(Alert.AlertType.ERROR, "Email failed: " + ex.getMessage()).showAndWait();
+
+                new Alert(Alert.AlertType.INFORMATION,
+                        "Invoice PDF emailed to " + recipientEmail + "!").showAndWait();
             } catch (Exception ex) {
-                throw new RuntimeException(ex);
+                ex.printStackTrace();
+                new Alert(Alert.AlertType.ERROR,
+                        "Failed to generate or send PDF: " + ex.getMessage())
+                        .showAndWait();
             }
         });
+
+
         HBox actions = new HBox(10, saveBtn, printBtn, emailBtn);
 
         root.getChildren().addAll(header, itemsBox, totals, actions);
@@ -247,7 +292,7 @@ public class CreateInvoiceForm {
                 CREATE TABLE IF NOT EXISTS invoices(
                   invoice_no TEXT PRIMARY KEY,
                   client TEXT, gst TEXT, date TEXT,
-                  car_make TEXT, car_model TEXT,
+                  car_make TEXT, car_model TEXT, license_no TEXT,
                   cgst REAL, sgst REAL, total REAL
                 )""");
             st.execute("""
@@ -268,57 +313,97 @@ public class CreateInvoiceForm {
         return tf;
     }
 
-    private static HBox createRow(LineItem item,
-                                  Runnable addRow,
-                                  ObservableList<LineItem> items,
-                                  CheckBox taxCheck,
-                                  TextField subField,
-                                  TextField cgstField,
-                                  TextField sgstField,
-                                  TextField totField) {
+    private static HBox createRow(
+            LineItem item,
+            Runnable addRow,
+            ObservableList<LineItem> items,
+            CheckBox taxCheck,
+            TextField subField,
+            TextField cgstField,
+            TextField sgstField,
+            TextField totField
+    ) {
         HBox row = new HBox(10);
-        UnaryOperator<Change> intFilter = c -> c.getControlNewText().matches("\\d*") ? c : null;
-        UnaryOperator<Change> decFilter = c -> c.getControlNewText().matches("\\d*(\\.\\d*)?") ? c : null;
 
+        // filters for numeric input
+        UnaryOperator<Change> intFilter = c ->
+                c.getControlNewText().matches("\\d*") ? c : null;
+        UnaryOperator<Change> decFilter = c ->
+                c.getControlNewText().matches("\\d*(\\.\\d*)?") ? c : null;
+
+        // particulars
         TextField partField = new TextField();
         partField.setPromptText("Particulars");
-        partField.textProperty().addListener((o, oldV, newV) -> item.particulars.set(newV));
+        partField.textProperty().addListener((obs, oldV, newV) ->
+                item.particulars.set(newV)
+        );
 
+        // quantity
         TextField qtyField = new TextField("1");
         qtyField.setPrefWidth(60);
         qtyField.setTextFormatter(new TextFormatter<>(intFilter));
-        qtyField.textProperty().addListener((o, oldV, newV) -> {
-            item.quantity.set(newV.isEmpty() ? 0 : Integer.parseInt(newV));
-            updateTotals(items, taxCheck.isSelected(), subField, cgstField, sgstField, totField);
-        });
 
+        // rate
+        TextField rateField = new TextField("0.00");
+        rateField.setPrefWidth(80);
+        rateField.setTextFormatter(new TextFormatter<>(decFilter));
+
+        // amount (read‑only, auto)
         TextField amtField = new TextField("0.00");
         amtField.setPrefWidth(80);
-        amtField.setTextFormatter(new TextFormatter<>(decFilter));
-        amtField.textProperty().addListener((o, oldV, newV) -> {
+        amtField.setEditable(false);
+
+        // when quantity changes, recalc amount
+        qtyField.textProperty().addListener((obs, oldV, newV) -> {
+            int q = newV.isEmpty() ? 0 : Integer.parseInt(newV);
+            item.quantity.set(q);
+            double r = item.rate.get();
+            amtField.setText(String.format("%.2f", r * q));
+        });
+
+        // when rate changes, recalc amount
+        rateField.textProperty().addListener((obs, oldV, newV) -> {
+            double r = newV.isEmpty() ? 0.0 : Double.parseDouble(newV);
+            item.rate.set(r);
+            int q = item.quantity.get();
+            amtField.setText(String.format("%.2f", r * q));
+        });
+
+        // when amount changes, update backing property and totals
+        amtField.textProperty().addListener((obs, oldV, newV) -> {
             item.amount.set(newV.isEmpty() ? 0.0 : Double.parseDouble(newV));
             updateTotals(items, taxCheck.isSelected(), subField, cgstField, sgstField, totField);
         });
 
-        amtField.setOnKeyPressed(evt -> {
+        // ENTER in amount adds a new row
+        rateField.setOnKeyPressed(evt -> {
             if (evt.getCode() == KeyCode.ENTER) {
                 addRow.run();
                 evt.consume();
+                // now move focus to the particulars of that new row:
+                Platform.runLater(() -> {
+                    VBox container = (VBox) row.getParent();
+                    // last child is the new HBox
+                    HBox newRow = (HBox) container.getChildren().get(container.getChildren().size() - 1);
+                    // first child of that HBox is the particulars TextField
+                    TextField newPart = (TextField) newRow.getChildren().get(0);
+                    newPart.requestFocus();
+                });
             }
         });
+
+        // delete button
         Button delBtn = new Button("Delete");
         delBtn.setOnAction(evt -> {
-            // remove from your backing list
             items.remove(item);
-            // remove from the UI
-            ((VBox)row.getParent()).getChildren().remove(row);
-            // recalc totals
+            ((VBox) row.getParent()).getChildren().remove(row);
             updateTotals(items, taxCheck.isSelected(), subField, cgstField, sgstField, totField);
         });
 
-        row.getChildren().addAll(partField, qtyField, amtField, delBtn);
+        row.getChildren().addAll(partField, qtyField, rateField, amtField, delBtn);
         return row;
     }
+
 
     private static void updateTotals(ObservableList<LineItem> items,
                                      boolean taxIncluded,
@@ -356,12 +441,13 @@ public class CreateInvoiceForm {
                                     ObservableList<LineItem> items,
                                     boolean taxIncluded,
                                     String carMake,
-                                    String carModel) {
+                                    String carModel,
+                                    String carLicense) {
         try {
             conn.setAutoCommit(false);
             String sqlInv = """
-                INSERT INTO invoices(invoice_no, client, gst, date, car_make, car_model, cgst, sgst, total)
-                VALUES(?,?,?,?,?,?,?,?,?)""";
+                INSERT INTO invoices(invoice_no, client, gst, date, car_make, car_model, license_no, cgst, sgst, total)
+                VALUES(?,?,?,?,?,?,?,?,?,?)""";
             try (PreparedStatement ps = conn.prepareStatement(sqlInv)) {
                 double sum = items.stream().mapToDouble(i -> i.amount.get()).sum();
                 double subtotal = taxIncluded ? sum / (1 + CGST_RATE + SGST_RATE) : sum;
@@ -375,28 +461,39 @@ public class CreateInvoiceForm {
                 ps.setString(4, date);
                 ps.setString(5, carMake);
                 ps.setString(6, carModel);
-                ps.setDouble(7, cgst);
-                ps.setDouble(8, sgst);
-                ps.setDouble(9, total);
+                ps.setString(7, carLicense);
+                ps.setDouble(8, cgst);
+                ps.setDouble(9, sgst);
+                ps.setDouble(10, total);
                 ps.executeUpdate();
             }
 
             String sqlItem = """
-                INSERT INTO invoice_items(invoice_no, particulars, quantity, amount, rate)
-                VALUES(?,?,?,?,?)""";
+            INSERT INTO invoice_items(invoice_no, particulars, quantity, amount, rate)
+            VALUES(?,?,?,?,?)""";
             try (PreparedStatement ps = conn.prepareStatement(sqlItem)) {
                 for (LineItem item : items) {
-                    int qty = item.quantity.get();
-                    double amt = item.amount.get();
-                    double rate = qty != 0 ? amt / qty : 0;
+                    int qty        = item.quantity.get();
+                    double inputAmt  = item.amount.get();
+                    double inputRate = qty != 0 ? inputAmt / qty : 0;
+
+                    // strip tax out if needed
+                    double netAmt  = taxIncluded
+                            ? inputAmt  / (1 + CGST_RATE + SGST_RATE)
+                            : inputAmt;
+                    double netRate = qty > 0
+                            ? netAmt / qty
+                            : 0;
+
                     ps.setString(1, invoiceNo);
                     ps.setString(2, item.particulars.get());
-                    ps.setInt(3, qty);
-                    ps.setDouble(4, amt);
-                    ps.setDouble(5, rate);
+                    ps.setInt   (3, qty);
+                    ps.setDouble(4, netAmt);
+                    ps.setDouble(5, netRate);
                     ps.executeUpdate();
                 }
             }
+
 
             conn.commit();
             new Alert(Alert.AlertType.INFORMATION, "Saved invoice " + invoiceNo).showAndWait();
@@ -447,8 +544,10 @@ public class CreateInvoiceForm {
     }
 
     public static class LineItem {
-        public final StringProperty particulars = new SimpleStringProperty();
+        public final StringProperty  particulars = new SimpleStringProperty();
         public final IntegerProperty quantity    = new SimpleIntegerProperty(1);
+        public final DoubleProperty  rate        = new SimpleDoubleProperty(0.0);   // ← new
         public final DoubleProperty  amount      = new SimpleDoubleProperty(0.0);
     }
+
 }
