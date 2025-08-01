@@ -139,6 +139,7 @@ public class CreateInvoiceForm {
                     return;
                 }
             }
+            updateTotals(items, subField, cgstField, sgstField, totField);
             InvoiceData data = new InvoiceData(
                     billField.getText(),
                     nameField.getText(),
@@ -154,7 +155,6 @@ public class CreateInvoiceForm {
                     Double.parseDouble(totField.getText())
             );
 
-            updateTotals(items, subField, cgstField, sgstField, totField);
             boolean success = InvoiceRepository.saveInvoice(conn, data);
 
             if (success) {
@@ -206,7 +206,7 @@ public class CreateInvoiceForm {
         return tf;
     }
 
-    private static HBox createRow(
+    public static HBox createRow(
             LineItem item,
             Runnable addRow,
             ObservableList<LineItem> items,
@@ -239,7 +239,7 @@ public class CreateInvoiceForm {
         qtyField.setTextFormatter(new TextFormatter<>(intFilter));
 
         //rate with tax
-        TextField rateWithTaxField = new TextField();
+        TextField rateWithTaxField = new TextField(String.format("%.2f", item.rate.get()* 1.18 ));
         rateWithTaxField.setPrefWidth(80);
         rateWithTaxField.setTextFormatter(new TextFormatter<>(decFilter));
         // rate
@@ -312,7 +312,7 @@ public class CreateInvoiceForm {
     }
 
 
-    private static void updateTotals(ObservableList<LineItem> items,
+    public static void updateTotals(ObservableList<LineItem> items,
                                      TextField subField,
                                      TextField cgstField,
                                      TextField sgstField,

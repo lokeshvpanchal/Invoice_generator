@@ -65,9 +65,9 @@ public class PdfGenerator {
                 float hdrX = w * 6 / 8;
                 float y    = h - 90;
                 cs.newLineAtOffset(hdrX, y);
-                cs.showText("Bill No: " + data.invoiceNo);
+                cs.showText("Bill No: " + data.getInvoiceNo());
                 cs.newLineAtOffset(0, -14);
-                cs.showText("Date: " + data.date);
+                cs.showText("Date: " + data.getDate());
                 cs.endText();
 
                 // --- client & car info ---
@@ -75,17 +75,17 @@ public class PdfGenerator {
                 cs.beginText();
                 cs.setFont(PDType1Font.HELVETICA, 12);
                 cs.newLineAtOffset(20, y);
-                cs.showText("Client: " + data.client);
+                cs.showText("Client: " + data.getClient());
                 cs.newLineAtOffset(w * 3 / 8 - 20, 0);
-                cs.showText("Car Model: " + data.carMake + " " + data.carModel);
+                cs.showText("Car Model: " + data.getCarMake() + " " + data.getCarModel());
                 cs.endText();
 
                 cs.beginText();
                 cs.setFont(PDType1Font.HELVETICA, 12);
                 cs.newLineAtOffset(20, y - 16);
-                cs.showText("GST No: " + (data.gst.isEmpty() ? "Not Applicable" : data.gst));
+                cs.showText("GST No: " + (data.getGst().isEmpty() ? "Not Applicable" : data.getGst()));
                 cs.newLineAtOffset(w * 3 / 8 - 20, 0);
-                cs.showText("License No: " + data.carLicense);
+                cs.showText("License No: " + data.getCarLicense());
                 cs.endText();
 
                 // --- ITEMS TABLE WITH BORDERS ---
@@ -107,7 +107,7 @@ public class PdfGenerator {
                 float tableW    = w - 40;
                 float headerH   = 20;
                 float rowH      = 18;
-                int   rowCount  = data.items.size() + 1;
+                int   rowCount  = data.getItems().size() + 1;
                 float tableTopY = y + headerH;
                 float tableBotY = tableTopY - rowCount * rowH;
 
@@ -140,9 +140,9 @@ public class PdfGenerator {
                 }
 
 // 4) data rows
-                for (int r = 0; r < data.items.size(); r++) {
+                for (int r = 0; r < data.getItems().size(); r++) {
                     float rowY = tableTopY - headerH - (r+1) * rowH + 6;
-                    var item = data.items.get(r);
+                    var item = data.getItems().get(r);
 
                     // compute per‑item GST
                     double gstAmt = item.rate.get() * item.quantity.get() * (CGST_RATE + SGST_RATE);
@@ -181,7 +181,7 @@ public class PdfGenerator {
                     cs.endText();
                 }
                 // horizontal lines
-                    float hl = tableTopY - headerH - (data.items.size()) * rowH ;
+                    float hl = tableTopY - headerH - (data.getItems().size()) * rowH ;
                     cs.moveTo(tableX, hl);
                     cs.lineTo(tableX + tableW, hl);
                     cs.stroke();
@@ -194,7 +194,7 @@ public class PdfGenerator {
                 float tw     = tx1 - tx0;
                 float ty0    = 177;
                 String[] labels = {"Subtotal:", "CGST:", "SGST:", "Total:"};
-                double[] vals   = {data.subtotal, data.cgst, data.sgst, data.total};
+                double[] vals   = {data.getSubtotal(), data.getCgst(), data.getSgst(), data.getTotal()};
                 int tRows      = labels.length;
 
 
@@ -228,7 +228,7 @@ public class PdfGenerator {
                 cs.setFont(PDType1Font.HELVETICA_BOLD, 12);
 
                 cs.newLineAtOffset(0, -16);
-                String words = NumberToWordsConverter.convert((long) data.total) + " INR Only";
+                String words = NumberToWordsConverter.convert((long) data.getTotal()) + " INR Only";
                 cs.showText(words);
                 cs.endText();
 

@@ -13,6 +13,7 @@ import org.example.billing_software.services.AutocompleteRepository;
 import org.example.billing_software.services.InvoiceRepository;
 import org.example.billing_software.views.CreateInvoiceForm;
 import org.example.billing_software.views.InvoiceListView;
+import org.example.billing_software.views.SalesChartView;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -45,7 +46,7 @@ public class Main extends Application {
 
         Button salesBtn = new Button("Sales");
         Button createInvoiceBtn = new Button("Create Invoice");
-        Button inventoryBtn = new Button("Inventory Items");
+        Button inventoryBtn = new Button("Sales Chart");
         salesBtn.setMaxWidth(Double.MAX_VALUE);
         createInvoiceBtn.setMaxWidth(Double.MAX_VALUE);
         inventoryBtn.setMaxWidth(Double.MAX_VALUE);
@@ -88,7 +89,8 @@ public class Main extends Application {
     }
 
     private void showInventoryView() {
-        workspace.getChildren().setAll(new Button("[Inventory view placeholder]"));
+        Node salesChart = SalesChartView.create(conn);
+        workspace.getChildren().setAll(salesChart);
     }
 
     public static void main(String[] args) {

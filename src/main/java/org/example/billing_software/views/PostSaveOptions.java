@@ -40,9 +40,9 @@ public class PostSaveOptions {
 
                     dialog.showAndWait().ifPresent(to -> {
                         try {
-                            String subject = "Invoice from Autocraft - " + data.invoiceNo;
-                            String body = "Dear " + data.client + ",\n\nPlease find attached your invoice.\n\nRegards,\nAutocraft";
-                            EmailSender.sendEmailWithAttachmentBytes(to, subject, body, pdfBytes, "Invoice-" + data.invoiceNo + ".pdf");
+                            String subject = "Invoice from Autocraft - " + data.getInvoiceNo();
+                            String body = "Dear " + data.getClient() + ",\n\nPlease find attached your invoice.\n\nRegards,\nAutocraft";
+                            EmailSender.sendEmailWithAttachmentBytes(to, subject, body, pdfBytes, "Invoice-" + data.getInvoiceNo() + ".pdf");
                             new Alert(Alert.AlertType.INFORMATION, "Invoice sent successfully to " + to).showAndWait();
                         } catch (Exception ex) {
                             ex.printStackTrace();
