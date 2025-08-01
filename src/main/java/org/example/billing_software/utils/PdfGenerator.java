@@ -7,7 +7,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
-import java.util.List;
 import java.awt.print.PrinterJob;
 
 import org.apache.pdfbox.printing.PDFPageable;
@@ -18,6 +17,7 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream.AppendMode;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.example.billing_software.models.InvoiceData;
 
 public class PdfGenerator {
     private static final SimpleDateFormat DATE_FMT = new SimpleDateFormat("dd/MM/yyyy");
@@ -106,7 +106,7 @@ public class PdfGenerator {
                 float tableX    = 20;
                 float tableW    = w - 40;
                 float headerH   = 20;
-                float rowH      = 20;
+                float rowH      = 18;
                 int   rowCount  = data.items.size() + 1;
                 float tableTopY = y + headerH;
                 float tableBotY = tableTopY - rowCount * rowH;
@@ -114,12 +114,6 @@ public class PdfGenerator {
 // 1) draw grid
                 cs.setStrokingColor(Color.BLACK);
                 cs.setLineWidth(0.5f);
-// horizontal lines
-                for (int i = 0; i <= rowCount; i++) {
-                    float yy = tableTopY - i * rowH;
-                    cs.moveTo(tableX,          yy);
-                    cs.lineTo(tableX + tableW, yy);
-                }
 // vertical lines
                 for (float x : colX) {
                     cs.moveTo(x,       tableTopY);
@@ -147,7 +141,7 @@ public class PdfGenerator {
 
 // 4) data rows
                 for (int r = 0; r < data.items.size(); r++) {
-                    float rowY = tableTopY - headerH - r * rowH + 6;
+                    float rowY = tableTopY - headerH - (r+1) * rowH + 6;
                     var item = data.items.get(r);
 
                     // compute per‑item GST
@@ -157,62 +151,52 @@ public class PdfGenerator {
                     cs.setFont(PDType1Font.HELVETICA, 10);
 
                     // 1) No.
-                    cs.newLineAtOffset(colX[0], rowY);
+                    cs.newLineAtOffset(colX[0]+ 2, rowY);
                     cs.showText(String.valueOf(r + 1));
 
                     // 2) Particulars
-                    cs.newLineAtOffset(colX[1] - colX[0], 0);
+                    cs.newLineAtOffset(colX[1] - colX[0]+ 2, 0);
                     cs.showText(item.particulars.get());
 
                     // 3) Qty
-                    cs.newLineAtOffset(colX[2] - colX[1], 0);
+                    cs.newLineAtOffset(colX[2] - colX[1]+ 2, 0);
                     cs.showText(String.valueOf(item.quantity.get()));
 
                     // 4) GST
-                    cs.newLineAtOffset(colX[3] - colX[2], 0);
+                    cs.newLineAtOffset(colX[3] - colX[2]+ 2, 0);
                     cs.showText("18%");
 
                     // 5) Rate (incl. tax)
-                    cs.newLineAtOffset(colX[4] - colX[3], 0);
+                    cs.newLineAtOffset(colX[4] - colX[3]+ 2, 0);
                     cs.showText(String.format("%.2f", item.rate.get() * (1 + CGST_RATE + SGST_RATE)));
 
                     // 6) Rate
-                    cs.newLineAtOffset(colX[5] - colX[4], 0);
+                    cs.newLineAtOffset(colX[5] - colX[4]+ 2, 0);
                     cs.showText(String.format("%.2f", item.rate.get()));
 
                     // 7) Total
-                    cs.newLineAtOffset(colX[6] - colX[5], 0);
+                    cs.newLineAtOffset(colX[6] - colX[5]+ 2, 0);
                     cs.showText(String.format("%.2f", item.amount.get()));
 
                     cs.endText();
                 }
+                // horizontal lines
+                    float hl = tableTopY - headerH - (data.items.size()) * rowH ;
+                    cs.moveTo(tableX, hl);
+                    cs.lineTo(tableX + tableW, hl);
+                    cs.stroke();
 
 
 
                 // --- TOTALS TABLE WITH BORDERS ---
-                float tx0    = colX[4];
-                float tx1    = colX[5];
+                float tx0    = colX[5]+60;
+                float tx1    = colX[6]+90;
                 float tw     = tx1 - tx0;
-                float ty0    = 170;
+                float ty0    = 177;
                 String[] labels = {"Subtotal:", "CGST:", "SGST:", "Total:"};
                 double[] vals   = {data.subtotal, data.cgst, data.sgst, data.total};
                 int tRows      = labels.length;
 
-                // draw totals grid
-                cs.setStrokingColor(Color.BLACK);
-                cs.setLineWidth(0.5f);
-                // horizontal
-                for (int i = 0; i <= tRows; i++) {
-                    float yy = ty0 - i * 14;
-                    cs.moveTo(tx0,     yy);
-                    cs.lineTo(tx0 + tw, yy);
-                }
-                // vertical borders
-                cs.moveTo(tx0,      ty0);
-                cs.lineTo(tx0,      ty0 - tRows * 14);
-                cs.moveTo(tx0 + tw, ty0);
-                cs.lineTo(tx0 + tw, ty0 - tRows * 14);
-                cs.stroke();
 
                 // draw labels & values
                 for (int i = 0; i < tRows; i++) {
@@ -223,7 +207,7 @@ public class PdfGenerator {
 
                     // label (left cell)
                     cs.beginText();
-                    cs.setFont(PDType1Font.HELVETICA_BOLD, 12);
+                    cs.setFont(PDType1Font.HELVETICA, 12);
                     cs.newLineAtOffset(tx0 + 2, yy);
                     cs.showText(lbl);
                     cs.endText();
@@ -238,14 +222,18 @@ public class PdfGenerator {
 
                 // --- rupees in words ---
                 cs.beginText();
+                cs.setFont(PDType1Font.HELVETICA, 12);
+                cs.newLineAtOffset(20, 154);
+                cs.showText("Amount Chargeable (in words) ");
                 cs.setFont(PDType1Font.HELVETICA_BOLD, 12);
-                cs.newLineAtOffset(20, 120);
-                String words = NumberToWordsConverter.convert((long) data.total) + " Rupees Only";
-                cs.showText("Rupees in Words: " + words);
+
+                cs.newLineAtOffset(0, -16);
+                String words = NumberToWordsConverter.convert((long) data.total) + " INR Only";
+                cs.showText(words);
                 cs.endText();
 
                 // --- footer ---
-                float footerY = 80;
+                float footerY = 110;
                 cs.beginText();
                 cs.setFont(PDType1Font.HELVETICA_BOLD, 12);
                 cs.newLineAtOffset(20, footerY);
@@ -260,7 +248,7 @@ public class PdfGenerator {
                 cs.showText("Bank Account Number: " + BANK_ACC);
                 cs.newLineAtOffset(0, -14);
                 cs.showText("Bank Branch IFSC: " + BANK_BRANCH);
-                cs.newLineAtOffset(0, -14);
+                cs.newLineAtOffset(0, -34);
                 cs.showText("E. & O.E.");
                 cs.newLineAtOffset(0, -14);
                 cs.showText("Subject to Vadodara Jurisdiction.");
@@ -270,7 +258,7 @@ public class PdfGenerator {
                 cs.beginText();
                 cs.setFont(PDType1Font.HELVETICA, 12);
                 float sigWidth = PDType1Font.HELVETICA.getStringWidth(SIGNATURE_TEXT) / 1000 * 12;
-                cs.newLineAtOffset(w - sigWidth - 20, footerY - 50);
+                cs.newLineAtOffset(w - sigWidth - 20, footerY - 90);
                 cs.showText(SIGNATURE_TEXT);
                 cs.endText();
             }

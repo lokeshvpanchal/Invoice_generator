@@ -1,13 +1,11 @@
-package org.example.billing_software.utils;
+package org.example.billing_software.services;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Properties;
 import javax.activation.DataHandler;
 import javax.activation.DataSource;
-import javax.activation.FileDataSource;
 import javax.mail.Authenticator;
 import javax.mail.Message;
 import javax.mail.MessagingException;
@@ -21,7 +19,7 @@ import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
 import javax.mail.util.ByteArrayDataSource;
 
-public class EmailUtil {
+public class EmailSender {
     private static final Properties cfg = new Properties();
     static {
         try (FileInputStream in = new FileInputStream("src/main/resources/config/email.properties")) {

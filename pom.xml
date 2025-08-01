@@ -142,7 +142,7 @@
                         <!-- Default configuration for running with: mvn clean javafx:run -->
                         <id>default-cli</id>
                         <configuration>
-                            <mainClass>org.example.billing_software/org.example.billing_software.DashboardApp
+                            <mainClass>org.example.billing_software/org.example.billing_software.Main
                             </mainClass>
                             <launcher>app</launcher>
                             <jlinkZipName>app</jlinkZipName>

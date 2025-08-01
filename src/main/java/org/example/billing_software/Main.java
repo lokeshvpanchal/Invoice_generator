@@ -9,17 +9,20 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import org.example.billing_software.services.AutocompleteRepository;
+import org.example.billing_software.services.InvoiceRepository;
+import org.example.billing_software.views.CreateInvoiceForm;
+import org.example.billing_software.views.InvoiceListView;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.sql.Statement;
 
 /**
  * DashboardApp provides the main JavaFX window with navigation
  * and delegates the invoice form to a separate CreateInvoiceForm class.
  */
-public class DashboardApp extends Application {
+public class Main extends Application {
     private StackPane workspace;
     private Connection conn;
 
@@ -28,6 +31,8 @@ public class DashboardApp extends Application {
         // Initialize SQLite connection and tables
         try {
             conn = DriverManager.getConnection("jdbc:sqlite:invoices.db");
+            AutocompleteRepository.createTables(conn);
+            InvoiceRepository.createSchema(conn);
         } catch (SQLException e) {
             e.printStackTrace();
             return;
@@ -78,7 +83,8 @@ public class DashboardApp extends Application {
     }
 
     private void showSalesView() {
-        workspace.getChildren().setAll(new Button("[Sales view placeholder]"));
+        Node invoiceList = InvoiceListView.create(conn);
+        workspace.getChildren().setAll(invoiceList);
     }
 
     private void showInventoryView() {

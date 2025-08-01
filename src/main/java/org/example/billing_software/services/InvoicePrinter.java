@@ -1,7 +1,9 @@
-package org.example.billing_software.utils;
+package org.example.billing_software.services;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.printing.PDFPageable;
+import org.example.billing_software.models.InvoiceData;
+import org.example.billing_software.utils.PdfGenerator;
 
 import java.awt.print.PrinterException;
 import java.awt.print.PrinterJob;

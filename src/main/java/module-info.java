@@ -17,4 +17,6 @@ module org.example.billing_software {
 
     opens org.example.billing_software to javafx.fxml;
     exports org.example.billing_software;
+    exports org.example.billing_software.views;
+    opens org.example.billing_software.views to javafx.fxml;
 }
