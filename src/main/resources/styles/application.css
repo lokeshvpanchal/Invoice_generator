@@ -1,0 +1,30 @@
+/* only labels under the .invoice-form container */
+.label {
+    -fx-font-family: "Helvetica Neue";
+    -fx-font-size: 14pt;
+}
+
+.add-button {
+    -fx-font-size: 10pt;
+    -fx-background-color: #27AE60;
+    -fx-text-fill: white;
+}
+
+.delete-button{
+    -fx-font-size: 10pt;
+    -fx-background-color:  #ec5141;
+    -fx-text-fill: white;
+}
+
+.save-button {
+    -fx-font-size: 10pt;
+    -fx-background-color: #2196F3;
+    -fx-text-fill: white;
+}
+
+/* Hover state */
+.add-button:hover, .save-button:hover, .delete-button:hover {
+    -fx-text-fill: black;
+    -fx-background-color: white;  /* slightly lighter green */
+}
+

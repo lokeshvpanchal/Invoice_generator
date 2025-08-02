@@ -1,5 +1,6 @@
 package org.example.billing_software.views;
 import javafx.application.Platform;
+import javafx.geometry.Pos;
 import org.example.billing_software.models.LineItem;
 import org.example.billing_software.services.AutocompleteRepository;
 import org.example.billing_software.services.EmailSender;
@@ -45,10 +46,12 @@ public class CreateInvoiceForm {
 
         VBox root = new VBox(10);
         root.setPadding(new Insets(20));
+        root.setFillWidth(false);
+
 
         // Header
         GridPane header = new GridPane();
-        header.setHgap(10);
+        header.setHgap(70);
         header.setVgap(10);
         TextField billField = new TextField(String.valueOf(InvoiceRepository.fetchNextBill(conn)));
         billField.setDisable(true);
@@ -64,27 +67,35 @@ public class CreateInvoiceForm {
         AutocompleteUtil.addAutocomplete(carMakeField, carMakeTrie);
         AutocompleteUtil.addAutocomplete(carModelField, carModelTrie);
 
-        header.addRow(1, new Label("Client Name:"), nameField);
-        header.addRow(2, new Label("GST No (opt):"), gstField);
-        header.addRow(3, new Label("Date:"), datePicker);
-        header.addRow(4, new Label("Car Make:"), carMakeField);
-        header.addRow(5, new Label("Car Model:"), carModelField);
-        header.addRow(6, new Label("Car License No. :"), carLicenseField);
 
+        header.addRow(0, new Label("Date:"), datePicker);
+        header.addRow(2, new Label("Client Name:"), nameField);
+        header.addRow(2, new Label("GST No (opt):"), gstField);
+        header.addRow(4, new Label("Car Make:"), carMakeField);
+        header.addRow(4, new Label("Car Model:"), carModelField);
+        header.addRow(5, new Label("Car License No. :"), carLicenseField);
+
+        header.addRow(7,new Label(""));
         // Items
         VBox itemsBox = new VBox(5);
         itemsBox.setPadding(new Insets(10, 0, 10, 0));
         ObservableList<LineItem> items = FXCollections.observableArrayList();
 
-        Label hdrPart = new Label("Particulars");
-        Label hdrQty = new Label("Quantity"); hdrQty.setPrefWidth(60);
-        Label hdrAmt = new Label("Amount"); hdrAmt.setPrefWidth(80);
+        Label hdrPart = new Label("Particulars"); hdrPart.setPrefWidth(160);
+        Label hdrQty = new Label("Quantity"); hdrQty.setPrefWidth(100);
+        Label hdrRwt = new Label("Rate incl. Tax"); hdrRwt.setPrefWidth(135);
+        Label hdrRate = new Label("Rate"); hdrRate.setPrefWidth(135);
+        Label hdrAmount = new Label("Amount"); hdrAmount.setPrefWidth(135);
         Label hdrAction = new Label("Action"); hdrAction.setPrefWidth(80);
-        HBox itemsHeader = new HBox(10, hdrPart, hdrQty, hdrAmt, hdrAction);
+        HBox itemsHeader = new HBox(10, hdrPart, hdrQty, hdrRwt,hdrRate, hdrAmount,hdrAction);
         itemsBox.getChildren().add(itemsHeader);
 
         // Totals
         GridPane totals = new GridPane();
+
+        totals.setPadding(new Insets(50, 0, 0, 0));  // 200px top padding
+
+        totals.setTranslateX(540);
         totals.setHgap(10);
         totals.setVgap(10);
         TextField subField = makeReadonlyField();
@@ -111,12 +122,19 @@ public class CreateInvoiceForm {
         addRow.run(); // Add initial row
 
         Button addItem = new Button("Add Item");
+        addItem.getStyleClass().add("add-button");
+
+
         addItem.setOnAction(e ->{
             addRow.run();
         });
 
+        HBox h = new HBox(50);
+
         // Buttons
         Button saveBtn = new Button("Save Invoice");
+        saveBtn.getStyleClass().add("save-button");
+        saveBtn.setTranslateX(totals.getTranslateX());
         saveBtn.setOnAction(e -> {
 
             // validation
@@ -194,8 +212,10 @@ public class CreateInvoiceForm {
         });
 
         HBox actions = new HBox(saveBtn);
+        actions.setPadding(new Insets(20, 0, 0, 0));
 
-        root.getChildren().addAll(header, itemsBox,addItem,totals, actions);
+
+        root.getChildren().addAll(header, h,itemsBox,addItem,totals, actions);
         return root;
     }
 
@@ -217,7 +237,7 @@ public class CreateInvoiceForm {
             TrieAutocomplete particularsTrie
 
     ) {
-        HBox row = new HBox(10);
+        HBox row = new HBox(25);
 
         // filters for numeric input
         UnaryOperator<Change> intFilter = c ->
@@ -235,21 +255,21 @@ public class CreateInvoiceForm {
 
         // quantity
         TextField qtyField = new TextField(String.valueOf(item.quantity.get()));
-        qtyField.setPrefWidth(60);
+        qtyField.setPrefWidth(80);
         qtyField.setTextFormatter(new TextFormatter<>(intFilter));
 
         //rate with tax
         TextField rateWithTaxField = new TextField(String.format("%.2f", item.rate.get()* 1.18 ));
-        rateWithTaxField.setPrefWidth(80);
+        rateWithTaxField.setPrefWidth(120);
         rateWithTaxField.setTextFormatter(new TextFormatter<>(decFilter));
         // rate
         TextField rateField = new TextField(String.format("%.2f", item.rate.get()));
-        rateField.setPrefWidth(80);
+        rateField.setPrefWidth(120);
         rateField.setTextFormatter(new TextFormatter<>(decFilter));
 
         // amount (read‑only, auto)
         TextField amtField = new TextField("0.00");
-        amtField.setPrefWidth(80);
+        amtField.setPrefWidth(120);
         amtField.setEditable(false);
 
         // when quantity changes, recalc amount
@@ -276,6 +296,7 @@ public class CreateInvoiceForm {
             amtField.setText(String.format("%.2f", r * q));
         });
 
+
         // when amount changes, update backing property and totals
         amtField.textProperty().addListener((obs, oldV, newV) -> {
             item.amount.set(newV.isEmpty() ? 0.0 : Double.parseDouble(newV));
@@ -298,9 +319,26 @@ public class CreateInvoiceForm {
                 });
             }
         });
+        rateWithTaxField.setOnKeyPressed(evt -> {
+            if (evt.getCode() == KeyCode.ENTER) {
+                addRow.run();
+                evt.consume();
+                // now move focus to the particulars of that new row:
+                Platform.runLater(() -> {
+                    VBox container = (VBox) row.getParent();
+                    // last child is the new HBox
+                    HBox newRow = (HBox) container.getChildren().get(container.getChildren().size() - 1);
+                    // first child of that HBox is the particulars TextField
+                    TextField newPart = (TextField) newRow.getChildren().get(0);
+                    newPart.requestFocus();
+                });
+            }
+        });
 
         // delete button
         Button delBtn = new Button("Delete");
+        delBtn.getStyleClass().add("delete-button");
+
         delBtn.setOnAction(evt -> {
             items.remove(item);
             ((VBox) row.getParent()).getChildren().remove(row);

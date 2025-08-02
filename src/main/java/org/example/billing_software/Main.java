@@ -5,6 +5,7 @@ import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -46,16 +47,16 @@ public class Main extends Application {
 
         Button salesBtn = new Button("Sales");
         Button createInvoiceBtn = new Button("Create Invoice");
-        Button inventoryBtn = new Button("Sales Chart");
+        Button chartBtn= new Button("Charts");
         salesBtn.setMaxWidth(Double.MAX_VALUE);
         createInvoiceBtn.setMaxWidth(Double.MAX_VALUE);
-        inventoryBtn.setMaxWidth(Double.MAX_VALUE);
+        chartBtn.setMaxWidth(Double.MAX_VALUE);
 
         salesBtn.setOnAction(e -> showSalesView());
         createInvoiceBtn.setOnAction(e -> showCreateInvoiceView());
-        inventoryBtn.setOnAction(e -> showInventoryView());
+        chartBtn.setOnAction(e -> showInventoryView());
 
-        navBar.getChildren().addAll(salesBtn, createInvoiceBtn, inventoryBtn);
+        navBar.getChildren().addAll(salesBtn, chartBtn,createInvoiceBtn);
 
         // Workspace
         workspace = new StackPane();
@@ -66,7 +67,10 @@ public class Main extends Application {
         root.setLeft(navBar);
         root.setCenter(workspace);
 
-        Scene scene = new Scene(root, 900, 600);
+        Scene scene = new Scene(root, 1000, 700);
+        scene.getStylesheets().add(
+                getClass().getResource("/styles/application.css").toExternalForm()
+        );
         primaryStage.setTitle("Invoice Dashboard");
         primaryStage.setScene(scene);
         primaryStage.show();
@@ -80,9 +84,11 @@ public class Main extends Application {
      */
     private void showCreateInvoiceView() {
         Node formView = CreateInvoiceForm.create(conn);
-        workspace.getChildren().setAll(formView);
+        ScrollPane scroller = new ScrollPane(formView);
+        scroller.setFitToWidth(true);
+        scroller.setFitToHeight(true);  // optional, if you want vertical fit too
+        workspace.getChildren().setAll(scroller);
     }
-
     private void showSalesView() {
         Node invoiceList = InvoiceListView.create(conn);
         workspace.getChildren().setAll(invoiceList);
